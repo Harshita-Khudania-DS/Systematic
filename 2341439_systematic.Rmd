@@ -1,0 +1,221 @@
+---
+title: "2341439_systematic"
+author: "Harshita Khudania"
+date: "2025-12-16"
+output: word_document
+---
+
+```{r}
+# ============================================================
+# SYSTEMATIC SAMPLING: SAMPLE SIZE DETERMINATION
+# ============================================================
+
+# Clear workspace
+rm(list = ls())
+
+set.seed(123)
+
+# ------------------------------------------------------------
+# 1. POPULATION & SUBGROUP INFORMATION
+# ------------------------------------------------------------
+
+population <- data.frame(
+  unit_id = 1:60,
+  subgroup = rep(c("G1", "G2", "G3"), each = 20),
+  value = c(rnorm(20, 50, 8),
+            rnorm(20, 60, 10),
+            rnorm(20, 55, 9))
+)
+
+# IMPORTANT: Randomize order for valid systematic sampling
+population <- population[sample(1:nrow(population)), ]
+population$unit_id <- 1:nrow(population)
+
+N <- nrow(population)
+
+# Subgroup information
+subgroup_data <- data.frame(
+  Subgroup = c("G1", "G2", "G3"),
+  Nh = c(20, 20, 20),
+  Sh = c(sd(population$value[population$subgroup == "G1"]),
+         sd(population$value[population$subgroup == "G2"]),
+         sd(population$value[population$subgroup == "G3"])),
+  Cost = c(1, 1.5, 2),      # Cost per unit
+  Time = c(2, 3, 4)         # Time per unit
+)
+
+subgroup_data$Wh <- subgroup_data$Nh / N
+
+# ------------------------------------------------------------
+# 2. TRUE POPULATION PARAMETERS
+# ------------------------------------------------------------
+
+true_mean <- mean(population$value)
+true_variance <- var(population$value)
+
+cat("TRUE POPULATION PARAMETERS\n")
+cat("Population Size (N):", N, "\n")
+cat("True Mean:", round(true_mean, 3), "\n")
+cat("True Variance:", round(true_variance, 3), "\n\n")
+
+# ------------------------------------------------------------
+# 3. PRECISION & CONFIDENCE SETTINGS
+# ------------------------------------------------------------
+
+d <- 2
+confidence_level <- 0.95
+Z <- qnorm((1 + confidence_level) / 2)
+
+cat("Precision Settings\n")
+cat("Confidence Level:", confidence_level * 100, "%\n")
+cat("Z value:", round(Z, 3), "\n")
+cat("Allowable Error (d):", d, "\n\n")
+
+# ------------------------------------------------------------
+# 4. REQUIRED SAMPLE SIZE (SYSTEMATIC SAMPLING)
+# ------------------------------------------------------------
+
+n_sys <- ceiling((Z^2 * true_variance) / d^2)
+
+cat("SYSTEMATIC SAMPLING\n")
+cat("Required Sample Size (n):", n_sys, "\n\n")
+
+# Sampling interval (must be ≥ 1)
+k <- max(1, floor(N / n_sys))
+
+cat("Sampling Interval (k):", k, "\n\n")
+
+# ------------------------------------------------------------
+# 5. SYSTEMATIC SAMPLE SELECTION
+# ------------------------------------------------------------
+
+r <- sample(1:k, 1)
+
+sample_indices <- seq(r, by = k, length.out = n_sys)
+sample_indices <- sample_indices[sample_indices <= N]
+
+systematic_sample <- population[sample_indices, ]
+
+cat("Random Start (r):", r, "\n")
+cat("Final Sample Size:", nrow(systematic_sample), "\n\n")
+
+# ------------------------------------------------------------
+# 6. ESTIMATION OF POPULATION MEAN
+# ------------------------------------------------------------
+
+sample_mean <- mean(systematic_sample$value)
+bias <- sample_mean - true_mean
+
+cat("ESTIMATION RESULTS\n")
+cat("Sample Mean:", round(sample_mean, 3), "\n")
+cat("Bias:", round(bias, 3), "\n\n")
+
+# ------------------------------------------------------------
+# 7. COST & TIME CALCULATION
+# ------------------------------------------------------------
+
+systematic_sample <- merge(systematic_sample,
+                           subgroup_data[, c("Subgroup", "Cost", "Time")],
+                           by.x = "subgroup",
+                           by.y = "Subgroup")
+
+total_cost <- sum(systematic_sample$Cost)
+total_time <- sum(systematic_sample$Time)
+
+cat("SURVEY RESOURCE ESTIMATION\n")
+cat("Total Survey Cost:", round(total_cost, 2), "\n")
+cat("Total Survey Time:", round(total_time, 2), "units\n\n")
+
+# ------------------------------------------------------------
+# 8. SUBGROUP-WISE SAMPLE DISTRIBUTION
+# ------------------------------------------------------------
+
+subgroup_sample_distribution <- table(systematic_sample$subgroup)
+
+cat("SUBGROUP-WISE SAMPLE DISTRIBUTION\n")
+print(subgroup_sample_distribution)
+cat("\n")
+
+# ------------------------------------------------------------
+# 9. IMPROVED EXPERIMENT DESIGN PLOTS
+# ------------------------------------------------------------
+
+par(mfrow = c(2, 2), mar = c(4, 4, 3, 1))
+
+# Plot 1: Population by Subgroups
+plot(population$unit_id, population$value,
+     col = as.numeric(factor(population$subgroup)),
+     pch = 19, cex = 0.8,
+     main = "Population Values by Subgroups",
+     xlab = "Unit ID", ylab = "Value")
+
+legend("topright",
+       legend = levels(factor(population$subgroup)),
+       col = 1:length(unique(population$subgroup)),
+       pch = 19,
+       title = "Subgroups")
+
+# Plot 2: Systematic Sampling Design
+plot(population$unit_id, population$value,
+     type = "l", col = "grey70", lwd = 1.5,
+     main = paste("Systematic Sampling Design (k =", k, ")"),
+     xlab = "Unit ID", ylab = "Value")
+
+points(systematic_sample$unit_id,
+       systematic_sample$value,
+       col = "red", pch = 19, cex = 1.2)
+
+segments(systematic_sample$unit_id,
+         min(population$value),
+         systematic_sample$unit_id,
+         systematic_sample$value,
+         col = "red", lty = 3)
+
+legend("topright",
+       legend = c("Population", "Selected Units"),
+       col = c("grey70", "red"),
+       lwd = c(2, NA),
+       pch = c(NA, 19))
+
+# Plot 3: Subgroup-wise Sample Allocation
+barplot(subgroup_sample_distribution,
+        col = "skyblue",
+        main = "Subgroup-wise Sample Allocation",
+        xlab = "Subgroup",
+        ylab = "Number of Sampled Units")
+
+# Plot 4: Population vs Sample Mean
+hist(population$value, breaks = 20,
+     col = "lightgrey", border = "white",
+     main = "Population vs Sample Mean",
+     xlab = "Value")
+
+abline(v = true_mean, col = "blue", lwd = 2)
+abline(v = sample_mean, col = "red", lwd = 2, lty = 2)
+
+legend("topright",
+       legend = c("Population Mean", "Sample Mean"),
+       col = c("blue", "red"),
+       lwd = 2, lty = c(1, 2))
+
+par(mfrow = c(1, 1))
+
+# ------------------------------------------------------------
+# 10. SUMMARY TABLE
+# ------------------------------------------------------------
+
+summary_table <- data.frame(
+  Parameter = c("Population Mean", "Sample Mean", "Bias",
+                "Sample Size", "Total Cost", "Total Time"),
+  Value = c(round(true_mean, 3),
+            round(sample_mean, 3),
+            round(bias, 3),
+            nrow(systematic_sample),
+            round(total_cost, 2),
+            round(total_time, 2))
+)
+
+cat("SUMMARY TABLE\n")
+print(summary_table)
+
+```
